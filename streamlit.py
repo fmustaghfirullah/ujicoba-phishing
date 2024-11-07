@@ -1,19 +1,16 @@
 import streamlit as st
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
-from sklearn.feature_extraction.text import TfidfVectorizer
 import joblib
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Konfigurasi dasar Streamlit
 st.title("🛡️ Aplikasi Deteksi Phishing dengan Random Forest")
 st.write("Aplikasi ini mendeteksi tautan phishing menggunakan model Random Forest Classifier.")
 
-# Load dataset
+# Load dataset phishing.csv
 @st.cache_data
 def load_data():
-    return pd.read_csv('phishing.csv')  # Pastikan dataset Anda ada di lokasi yang sesuai
+    return pd.read_csv('phishing.csv')  # Pastikan file phishing.csv berada di direktori yang sesuai
 
 data = load_data()
 
@@ -21,61 +18,48 @@ data = load_data()
 if st.checkbox("Tampilkan sampel data"):
     st.write(data.head())
 
-# Preprocessing data: pastikan tidak ada NaN pada kolom 'label'
-data['status'] = data['status'].map({'phishing': 0, 'legitimate': 1})  # Pastikan label sesuai dataset Anda
-
-# Hapus baris dengan NaN pada 'label' dan fitur lainnya
-data = data.dropna(subset=['url', 'status'])
-
+# Pastikan kolom 'status' memiliki 1 untuk link aman dan 0 untuk phishing
 # Pisahkan data menjadi fitur dan label
 X = data['url']
 y = data['status']
 
+# Memuat model yang sudah dilatih
+model = joblib.load('phishing_model.pkl')
+
+# Memuat vectorizer untuk mentransformasikan URL
+vectorizer = joblib.load('vectorizer.pkl')
+
 # Text Vectorization menggunakan TF-IDF
-vectorizer = TfidfVectorizer()
-X_transformed = vectorizer.fit_transform(X)
+X_transformed = vectorizer.transform(X)
 
-# Split data menjadi training dan testing set
-X_train, X_test, y_train, y_test = train_test_split(X_transformed, y, test_size=0.2, random_state=42)
-
-# Train model Random Forest
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
-
-# Simpan model dan vectorizer
-joblib.dump(model, 'phishing_model.pkl')
-joblib.dump(vectorizer, 'vectorizer.pkl')
-
-# Evaluasi model
-y_pred = model.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-report = classification_report(y_test, y_pred)
-
-# Tampilkan hasil evaluasi model
+# Evaluasi model untuk informasi umum
+y_pred = model.predict(X_transformed)
+accuracy = (y_pred == y).mean() * 100  # Akurasi model
 st.subheader("📊 Hasil Evaluasi Model")
-st.write(f"**Akurasi**: {accuracy * 100:.2f}%")
+st.write(f"**Akurasi**: {accuracy:.2f}%")
+
+# Menampilkan classification report (jika diperlukan)
+from sklearn.metrics import classification_report
+report = classification_report(y, y_pred)
 st.text("Classification Report:")
 st.text(report)
 
-# Bagian Input URL untuk Deteksi
+# Bagian Input URL untuk Deteksi Phishing
 st.subheader("🔍 Deteksi Phishing dari URL")
 input_url = st.text_input("Masukkan URL yang ingin diperiksa:")
 
 if st.button("Deteksi"):
     if input_url:
-        # Muat model dan vectorizer yang sudah disimpan
-        loaded_model = joblib.load('phishing_model.pkl')
-        loaded_vectorizer = joblib.load('vectorizer.pkl')
-        
         # Transformasi input URL
-        input_transformed = loaded_vectorizer.transform([input_url])
-        
-        # Prediksi
-        prediction = loaded_model.predict(input_transformed)[0]
-        
+        input_transformed = vectorizer.transform([input_url])
+
+        # Prediksi menggunakan model
+        prediction = model.predict(input_transformed)[0]
+
+        # Menampilkan hasil prediksi
         if prediction == 1:
-            st.error("⚠️ URL ini terdeteksi sebagai **Phishing**.")
+            st.success("✅ URL ini terdeteksi sebagai **Aman**.")
         else:
-            st.success("✅ URL ini terdeteksi sebagai **Legitimate**.")
+            st.error("⚠️ URL ini terdeteksi sebagai **Phishing**.")
     else:
         st.write("⚠️ Silakan masukkan URL untuk pemeriksaan.")
