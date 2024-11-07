@@ -24,11 +24,11 @@ if st.checkbox("Tampilkan sampel data"):
     st.write(data.head())
 
 # Preprocessing data
-data['label'] = data['label'].map({'phishing': 1, 'legitimate': 0})  # Pastikan label sesuai dataset Anda
+data['status'] = data['status'].map({'phishing': 0, 'legitimate': 1})  # Pastikan label sesuai dataset Anda
 
 # Pisahkan data menjadi fitur dan label
 X = data['url']
-y = data['label']
+y = data['status']
 
 # Text Vectorization menggunakan TF-IDF
 vectorizer = TfidfVectorizer()
