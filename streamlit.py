@@ -25,7 +25,7 @@ if st.checkbox("Tampilkan sampel data"):
 data['status'] = data['status'].map({'phishing': 0, 'legitimate': 1})  # Pastikan label sesuai dataset Anda
 
 # Hapus baris dengan NaN pada 'label' dan fitur lainnya
-data = data.dropna(subset=['label', 'status'])
+data = data.dropna(subset=['url', 'status'])
 
 # Pisahkan data menjadi fitur dan label
 X = data['url']
