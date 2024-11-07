@@ -1,31 +1,110 @@
 import streamlit as st
-import joblib
 import pandas as pd
-import re
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score, f1_score
+from sklearn.tree import plot_tree
+import matplotlib.pyplot as plt
+import joblib
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-def extract_features(url):
-    features = {}
-    features['panjang_url'] = len(url)
-    features['protokol'] = int("https" in url)
-    features['sepsial_karakter'] = sum([1 for char in url if char in ['@', '-', '_', '%', '.', '=', '&']])
-    features['jumlah_digit'] = sum([1 for char in url if char.isdigit()])
-    features['jumlah_subdomain'] = url.count('.') - 1
-    features['ipaddress'] = int(bool(re.search(r'[0-9]+(?:\.[0-9]+){3}', url)))
-    return features
+# Konfigurasi dasar Streamlit
+st.title("🛡️ Aplikasi Deteksi Phishing dengan Random Forest")
+st.write("Aplikasi ini mendeteksi tautan phishing menggunakan model Random Forest Classifier.")
 
-loaded_model = joblib.load('phishing_model.pkl')
+# Load dataset
+@st.cache_data
+def load_data():
+    return pd.read_csv('phising.csv')  # Pastikan dataset Anda ada di lokasi yang sesuai
 
-st.title("Phishing URL Detection")
-url = st.text_input("Enter a URL:")
-if st.button("Predict"):
-  if url:
-    features = extract_features(url)
-    input_df = pd.DataFrame([features])
-    prediction = loaded_model.predict(input_df)
-    if prediction[0] == 1:
-        st.write("The URL is classified as phishing.")
+data = load_data()
+
+# Tampilkan sampel data
+if st.checkbox("Tampilkan sampel data"):
+    st.write(data.head())
+
+# Preprocessing data
+data['label'] = data['label'].map({'phishing': 1, 'legitimate': 0})  # Pastikan label sesuai dataset Anda
+
+# Pisahkan data menjadi fitur dan label
+X = data['url']
+y = data['label']
+
+# Text Vectorization menggunakan TF-IDF
+vectorizer = TfidfVectorizer()
+X_transformed = vectorizer.fit_transform(X)
+
+# Split data menjadi training dan testing set
+X_train, X_test, y_train, y_test = train_test_split(X_transformed, y, test_size=0.2, random_state=42)
+
+# Train model Random Forest
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+
+# Simpan model dan vectorizer
+joblib.dump(model, 'phishing_model.pkl')
+joblib.dump(vectorizer, 'vectorizer.pkl')
+
+# Evaluasi model
+y_pred = model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
+report = classification_report(y_test, y_pred, output_dict=True)
+
+# Tampilkan hasil evaluasi model
+st.subheader("📊 Hasil Evaluasi Model")
+st.write(f"**Akurasi**: {accuracy * 100:.2f}%")
+st.write(f"**Precision**: {precision:.2f}")
+st.write(f"**Recall**: {recall:.2f}")
+st.write(f"**F1-Score**: {f1:.2f}")
+
+# Tampilkan classification report secara mendetail
+st.subheader("📋 Classification Report")
+st.json(report)
+
+# Visualisasi salah satu pohon keputusan
+st.subheader("🌳 Visualisasi Pohon Keputusan")
+if st.checkbox("Tampilkan Visualisasi Salah Satu Pohon"):
+    fig, ax = plt.subplots(figsize=(20, 10))
+    plot_tree(model.estimators_[0], filled=True, max_depth=3, fontsize=10, feature_names=vectorizer.get_feature_names_out(), ax=ax)
+    st.pyplot(fig)
+
+# Bagian Input URL untuk Deteksi
+st.subheader("🔍 Deteksi Phishing dari URL")
+input_url = st.text_input("Masukkan URL yang ingin diperiksa:")
+
+if st.button("Deteksi"):
+    if input_url:
+        # Muat model dan vectorizer yang sudah disimpan
+        loaded_model = joblib.load('phishing_model.pkl')
+        loaded_vectorizer = joblib.load('vectorizer.pkl')
+        
+        # Transformasi input URL
+        input_transformed = loaded_vectorizer.transform([input_url])
+        
+        # Prediksi
+        prediction = loaded_model.predict(input_transformed)[0]
+        confidence = loaded_model.predict_proba(input_transformed)[0]
+
+        # Tampilkan hasil prediksi dan confidence score
+        if prediction == 1:
+            st.error("⚠️ URL ini terdeteksi sebagai **Phishing**.")
+        else:
+            st.success("✅ URL ini terdeteksi sebagai **Legitimate**.")
+        
+        st.write(f"**Confidence Score**:")
+        st.write(f"- Legitimate: {confidence[0]:.2f}")
+        st.write(f"- Phishing: {confidence[1]:.2f}")
+        
+        # Tampilkan rincian skor prediksi
+        st.write("### 🔎 Rincian Prediksi")
+        st.write(f"- **Akurasi model**: {accuracy * 100:.2f}%")
+        st.write(f"- **Precision**: {precision:.2f}")
+        st.write(f"- **Recall**: {recall:.2f}")
+        st.write(f"- **F1 Score**: {f1:.2f}")
+        
+        st.info("Catatan: Semakin tinggi skor confidence pada kategori 'Phishing', semakin besar kemungkinan URL tersebut berbahaya.")
     else:
-        st.write("The URL is classified as safe.")
-
-  else:
-      st.write("Please enter a URL.")
+        st.write("⚠️ Silakan masukkan URL untuk pemeriksaan.")
