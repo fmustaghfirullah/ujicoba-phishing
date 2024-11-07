@@ -2,12 +2,9 @@ import streamlit as st
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score, f1_score
-from sklearn.impute import SimpleImputer
-from sklearn.tree import plot_tree
-import matplotlib.pyplot as plt
-import joblib
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.feature_extraction.text import TfidfVectorizer
+import joblib
 
 # Konfigurasi dasar Streamlit
 st.title("🛡️ Aplikasi Deteksi Phishing dengan Random Forest")
@@ -24,8 +21,11 @@ data = load_data()
 if st.checkbox("Tampilkan sampel data"):
     st.write(data.head())
 
-# Preprocessing data
+# Preprocessing data: pastikan tidak ada NaN pada kolom 'label'
 data['status'] = data['status'].map({'phishing': 0, 'legitimate': 1})  # Pastikan label sesuai dataset Anda
+
+# Hapus baris dengan NaN pada 'label' dan fitur lainnya
+data = data.dropna(subset=['label', 'status'])
 
 # Pisahkan data menjadi fitur dan label
 X = data['url']
@@ -37,9 +37,6 @@ X_transformed = vectorizer.fit_transform(X)
 
 # Split data menjadi training dan testing set
 X_train, X_test, y_train, y_test = train_test_split(X_transformed, y, test_size=0.2, random_state=42)
-imputer = SimpleImputer(strategy='mean')  
-X_train = imputer.fit_transform(X_train)
-X_test = imputer.transform(X_test)
 
 # Train model Random Forest
 model = RandomForestClassifier(n_estimators=100, random_state=42)
@@ -52,28 +49,13 @@ joblib.dump(vectorizer, 'vectorizer.pkl')
 # Evaluasi model
 y_pred = model.predict(X_test)
 accuracy = accuracy_score(y_test, y_pred)
-precision = precision_score(y_test, y_pred)
-recall = recall_score(y_test, y_pred)
-f1 = f1_score(y_test, y_pred)
-report = classification_report(y_test, y_pred, output_dict=True)
+report = classification_report(y_test, y_pred)
 
 # Tampilkan hasil evaluasi model
 st.subheader("📊 Hasil Evaluasi Model")
 st.write(f"**Akurasi**: {accuracy * 100:.2f}%")
-st.write(f"**Precision**: {precision:.2f}")
-st.write(f"**Recall**: {recall:.2f}")
-st.write(f"**F1-Score**: {f1:.2f}")
-
-# Tampilkan classification report secara mendetail
-st.subheader("📋 Classification Report")
-st.json(report)
-
-# Visualisasi salah satu pohon keputusan
-st.subheader("🌳 Visualisasi Pohon Keputusan")
-if st.checkbox("Tampilkan Visualisasi Salah Satu Pohon"):
-    fig, ax = plt.subplots(figsize=(20, 10))
-    plot_tree(model.estimators_[0], filled=True, max_depth=3, fontsize=10, feature_names=vectorizer.get_feature_names_out(), ax=ax)
-    st.pyplot(fig)
+st.text("Classification Report:")
+st.text(report)
 
 # Bagian Input URL untuk Deteksi
 st.subheader("🔍 Deteksi Phishing dari URL")
@@ -90,25 +72,10 @@ if st.button("Deteksi"):
         
         # Prediksi
         prediction = loaded_model.predict(input_transformed)[0]
-        confidence = loaded_model.predict_proba(input_transformed)[0]
-
-        # Tampilkan hasil prediksi dan confidence score
+        
         if prediction == 1:
             st.error("⚠️ URL ini terdeteksi sebagai **Phishing**.")
         else:
             st.success("✅ URL ini terdeteksi sebagai **Legitimate**.")
-        
-        st.write(f"**Confidence Score**:")
-        st.write(f"- Legitimate: {confidence[0]:.2f}")
-        st.write(f"- Phishing: {confidence[1]:.2f}")
-        
-        # Tampilkan rincian skor prediksi
-        st.write("### 🔎 Rincian Prediksi")
-        st.write(f"- **Akurasi model**: {accuracy * 100:.2f}%")
-        st.write(f"- **Precision**: {precision:.2f}")
-        st.write(f"- **Recall**: {recall:.2f}")
-        st.write(f"- **F1 Score**: {f1:.2f}")
-        
-        st.info("Catatan: Semakin tinggi skor confidence pada kategori 'Phishing', semakin besar kemungkinan URL tersebut berbahaya.")
     else:
         st.write("⚠️ Silakan masukkan URL untuk pemeriksaan.")
