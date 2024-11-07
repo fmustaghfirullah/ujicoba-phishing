@@ -15,7 +15,7 @@ st.write("Aplikasi ini mendeteksi tautan phishing menggunakan model Random Fores
 # Load dataset
 @st.cache_data
 def load_data():
-    return pd.read_csv('phising.csv')  # Pastikan dataset Anda ada di lokasi yang sesuai
+    return pd.read_csv('phishing.csv')  # Pastikan dataset Anda ada di lokasi yang sesuai
 
 data = load_data()
 
